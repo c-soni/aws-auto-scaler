@@ -1,39 +1,20 @@
-use redis::{AsyncConnectionConfig, AsyncTypedCommands, RedisError, aio::MultiplexedConnection};
+use actix_web::{App, Error, HttpRequest, HttpResponse, HttpServer, middleware, web};
+use redis::aio::MultiplexedConnection;
+use serde::{Deserialize, Serialize};
+use std::string::String;
 
-use std::{string::String, time::Duration};
+pub mod constants;
+pub mod ec2_utils;
+pub mod redis_utils;
+pub mod s3_utils;
+pub mod sqs_utils;
 
-async fn get_connection() -> Option<MultiplexedConnection> {
-    let config: AsyncConnectionConfig =
-        AsyncConnectionConfig::new().set_connection_timeout(Some(Duration::from_millis(10000)));
+use crate::redis_utils::{get_connection, get_string, set_string};
 
-    let connection = match redis::Client::open("redis://127.0.0.1") {
-        Ok(client) => match client
-            .get_multiplexed_async_connection_with_config(&config)
-            .await
-        {
-            Ok(conn) => conn,
-            Err(e) => {
-                println!("Failed to connect to Redis: {e}");
-                return None;
-            }
-        },
-        Err(e) => {
-            println!("Failed to create Redis client: {e}");
-            return None;
-        }
-    };
-    Some(connection)
-}
-
-async fn get_string(
-    mut connection: MultiplexedConnection,
-    key: &str,
-) -> Result<Option<String>, RedisError> {
-    connection.get(key).await
-}
-
-async fn set_string(mut connection: MultiplexedConnection, key: &str, value: &str) -> Option<()> {
-    connection.set(key, value).await.ok()
+#[derive(Debug, Serialize, Deserialize)]
+struct MyObj {
+    name: String,
+    number: i32,
 }
 
 async fn do_stuff(connection: MultiplexedConnection) {
@@ -50,13 +31,56 @@ async fn do_stuff(connection: MultiplexedConnection) {
     };
 }
 
-#[tokio::main]
-async fn main() {
+/// This handler uses json extractor
+async fn index(item: web::Json<MyObj>) -> HttpResponse {
+    println!("model: {:?}", &item);
+    HttpResponse::Ok().json(item.0) // <- send response
+}
+
+/// This handler uses json extractor with limit
+async fn extract_item(item: web::Json<MyObj>, req: HttpRequest) -> HttpResponse {
+    println!("request: {req:?}");
+    println!("model: {item:?}");
+
+    HttpResponse::Ok().json(item.0) // <- send json response
+}
+
+/// This handler manually load request payload and parse json object
+async fn index_manual(body: web::Bytes) -> Result<HttpResponse, Error> {
+    // body is loaded, now we can deserialize serde-json
+    let obj = serde_json::from_slice::<MyObj>(&body)?;
+    Ok(HttpResponse::Ok().json(obj)) // <- send response
+}
+
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
     let connection: MultiplexedConnection = get_connection().await.unwrap();
-    do_stuff(connection).await
+    do_stuff(connection).await;
+
+    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
+
+    log::info!("starting HTTP server at http://localhost:8080");
+    HttpServer::new(|| {
+        App::new()
+            // enable logger
+            .wrap(middleware::Logger::default())
+            .app_data(web::JsonConfig::default().limit(4096)) // <- limit size of the payload (global configuration)
+            .service(web::resource("/extractor").route(web::post().to(index)))
+            .service(
+                web::resource("/extractor2")
+                    .app_data(web::JsonConfig::default().limit(1024)) // <- limit size of the payload (resource level)
+                    .route(web::post().to(extract_item)),
+            )
+            .service(web::resource("/manual").route(web::post().to(index_manual)))
+            .service(web::resource("/").route(web::post().to(index)))
+    })
+    .bind(("127.0.0.1", 8080))?
+    .run()
+    .await
+
     // Connect to S3
     // Connect to EC2 and create min instances
     // Connect to SQS
     // Polling for /status endpoint with image reqId query parameter
-    // POST endpoint for
+    // POST endpoint for image processing request
 }

@@ -1,5 +1,4 @@
 ```bash
-cargo install
 cargo build --release
-cargo run --release
+REDIS_URL="redis://127.0.0.1" cargo run --release
 ```
