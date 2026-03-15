@@ -3,7 +3,8 @@ use redis::{AsyncConnectionConfig, AsyncTypedCommands, RedisError, aio::Multiple
 use std::{string::String, time::Duration};
 
 async fn get_connection() -> Option<MultiplexedConnection> {
-    let config: AsyncConnectionConfig = AsyncConnectionConfig::new().set_connection_timeout(Some(Duration::from_millis(10000)));
+    let config: AsyncConnectionConfig =
+        AsyncConnectionConfig::new().set_connection_timeout(Some(Duration::from_millis(10000)));
 
     let connection = match redis::Client::open("redis://127.0.0.1") {
         Ok(client) => match client
@@ -24,7 +25,10 @@ async fn get_connection() -> Option<MultiplexedConnection> {
     Some(connection)
 }
 
-async fn get_string(mut connection: MultiplexedConnection, key: &str) -> Result<Option<String>, RedisError> {
+async fn get_string(
+    mut connection: MultiplexedConnection,
+    key: &str,
+) -> Result<Option<String>, RedisError> {
     connection.get(key).await
 }
 
@@ -37,12 +41,12 @@ async fn do_stuff(connection: MultiplexedConnection) {
 
     match get_string(connection.clone(), "foo").await {
         Ok(s) => println!("Received: {}", s.unwrap_or(String::from("EMPTY"))),
-        Err(_) => println!("ERROR")
+        Err(_) => println!("ERROR"),
     };
 
     match get_string(connection.clone(), "foo2").await {
         Ok(s) => println!("Received: {}", s.unwrap_or(String::from("EMPTY"))),
-        Err(_) => println!("ERROR")
+        Err(_) => println!("ERROR"),
     };
 }
 
@@ -54,5 +58,5 @@ async fn main() {
     // Connect to EC2 and create min instances
     // Connect to SQS
     // Polling for /status endpoint with image reqId query parameter
-    // POST endpoint for 
+    // POST endpoint for
 }
