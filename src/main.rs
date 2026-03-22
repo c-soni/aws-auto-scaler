@@ -1,15 +1,9 @@
+pub mod utils;
+use std::string::String;
+use serde::{Deserialize, Serialize};
 use actix_web::{App, Error, HttpRequest, HttpResponse, HttpServer, middleware, web};
 use redis::aio::MultiplexedConnection;
-use serde::{Deserialize, Serialize};
-use std::string::String;
-
-pub mod constants;
-pub mod ec2_utils;
-pub mod redis_utils;
-pub mod s3_utils;
-pub mod sqs_utils;
-
-use crate::redis_utils::{get_connection, get_string, set_string};
+use crate::utils::redis::{get_connection, get_string, set_string};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct MyObj {
@@ -21,26 +15,26 @@ async fn do_stuff(connection: MultiplexedConnection) {
     set_string(connection.clone(), "foo", "bar").await;
 
     match get_string(connection.clone(), "foo").await {
-        Ok(s) => println!("Received: {}", s.unwrap_or(String::from("EMPTY"))),
-        Err(_) => println!("ERROR"),
+        Ok(s) => log::info!("Received: {}", s.unwrap_or(String::from("EMPTY"))),
+        Err(_) => log::error!("ERROR"),
     };
 
     match get_string(connection.clone(), "foo2").await {
-        Ok(s) => println!("Received: {}", s.unwrap_or(String::from("EMPTY"))),
-        Err(_) => println!("ERROR"),
+        Ok(s) => log::info!("Received: {}", s.unwrap_or(String::from("EMPTY"))),
+        Err(_) => log::error!("ERROR"),
     };
 }
 
 /// This handler uses json extractor
 async fn index(item: web::Json<MyObj>) -> HttpResponse {
-    println!("model: {:?}", &item);
+    log::info!("model: {:?}", &item);
     HttpResponse::Ok().json(item.0) // <- send response
 }
 
 /// This handler uses json extractor with limit
 async fn extract_item(item: web::Json<MyObj>, req: HttpRequest) -> HttpResponse {
-    println!("request: {req:?}");
-    println!("model: {item:?}");
+    log::info!("request: {req:?}");
+    log::info!("model: {item:?}");
 
     HttpResponse::Ok().json(item.0) // <- send json response
 }
@@ -54,10 +48,9 @@ async fn index_manual(body: web::Bytes) -> Result<HttpResponse, Error> {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
     let connection: MultiplexedConnection = get_connection().await.unwrap();
     do_stuff(connection).await;
-
-    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
     log::info!("starting HTTP server at http://localhost:8080");
     HttpServer::new(|| {

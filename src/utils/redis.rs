@@ -1,8 +1,6 @@
-use redis::{AsyncConnectionConfig, AsyncTypedCommands, RedisError, aio::MultiplexedConnection};
-
 use std::{string::String, time::Duration};
-
-use crate::constants::REDIS_URL_VAR;
+use redis::{AsyncConnectionConfig, AsyncTypedCommands, RedisError, aio::MultiplexedConnection};
+use super::constants::REDIS_URL_VAR;
 
 pub async fn get_connection() -> Option<MultiplexedConnection> {
     let config: AsyncConnectionConfig =
@@ -15,12 +13,12 @@ pub async fn get_connection() -> Option<MultiplexedConnection> {
         {
             Ok(conn) => conn,
             Err(e) => {
-                println!("Failed to connect to Redis: {e}");
+                log::error!("Failed to connect to Redis: {e}");
                 return None;
             }
         },
         Err(e) => {
-            println!("Failed to create Redis client: {e}");
+            log::error!("Failed to create Redis client: {e}");
             return None;
         }
     };
